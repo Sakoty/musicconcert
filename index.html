@@ -59,7 +59,9 @@ input,button{
   <input id="instName" placeholder="楽器名">
   <button onclick="addNewInstrument()">楽器追加</button>
 </div>
-
+<button onclick="toggleConductorView()">
+🎼 指揮者視点 切替
+</button>
 <div id="stageArea">
   <canvas id="c" width="1000" height="650"></canvas>
 </div>
@@ -249,6 +251,36 @@ document.addEventListener("keydown",e=>{
     if(obj) canvas.remove(obj);
   }
 });
+
+/* ======================
+   指揮者視点モード
+====================== */
+
+let conductorView=false;
+
+function toggleConductorView(){
+
+  conductorView=!conductorView;
+
+  if(conductorView){
+
+    // 全体を上下反転
+    canvas.setViewportTransform([
+      1, 0,
+      0, -1,
+      0, canvas.height
+    ]);
+
+  }else{
+
+    // 通常表示へ戻す
+    canvas.setViewportTransform([
+      1,0,0,1,0,0
+    ]);
+  }
+
+  canvas.requestRenderAll();
+}
 </script>
 
 </body>
