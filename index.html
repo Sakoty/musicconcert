@@ -2,79 +2,144 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>舞台配置エディタ</title>
+<title>吹奏楽ステージ配置</title>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+
 <style>
 body{
   margin:0;
+  display:flex;
   font-family:sans-serif;
+  background:#f0f2f5;
 }
-#toolbar{
-  padding:10px;
+
+/* 左パレット */
+#palette{
+  width:220px;
   background:#222;
+  color:white;
+  padding:10px;
 }
-button{
-  margin-right:5px;
+
+.item{
+  background:#444;
+  margin:8px 0;
+  padding:10px;
+  cursor:pointer;
+  text-align:center;
+  border-radius:6px;
 }
+
+.item:hover{
+  background:#666;
+}
+
+/* 舞台 */
+#stageArea{
+  flex:1;
+  padding:10px;
+}
+
 canvas{
-  border:1px solid #ccc;
+  background:white;
+  border:2px solid #999;
 }
 </style>
 </head>
 
 <body>
 
-<div id="toolbar">
-  <button onclick="addStage()">舞台</button>
-  <button onclick="addLight()">照明</button>
-  <button onclick="addText()">テキスト</button>
-  <button onclick="save()">保存</button>
-  <button onclick="load()">読込</button>
+<div id="palette">
+  <h3>配置アイテム</h3>
+
+  <div class="item" onclick="addChair()">🪑 椅子</div>
+  <div class="item" onclick="addStand()">🎼 譜面台</div>
+  <div class="item" onclick="addInstrument('🎺')">トランペット</div>
+  <div class="item" onclick="addInstrument('🎷')">サックス</div>
+  <div class="item" onclick="addInstrument('🥁')">打楽器</div>
+
+  <hr>
+  <div class="item" onclick="save()">保存</div>
+  <div class="item" onclick="load()">読込</div>
 </div>
 
-<canvas id="c" width="1000" height="600"></canvas>
+<div id="stageArea">
+  <canvas id="c" width="1000" height="650"></canvas>
+</div>
 
 <script>
-const canvas = new fabric.Canvas('c');
+const canvas = new fabric.Canvas('c',{
+  selection:true
+});
 
-function addStage(){
-  const rect = new fabric.Rect({
+/* ===== 椅子 ===== */
+function addChair(){
+  const chair = new fabric.Rect({
     left:100,
     top:100,
-    fill:'#888',
-    width:200,
-    height:100
+    width:35,
+    height:35,
+    fill:"#8b5a2b",
+    rx:5,
+    ry:5
   });
-  canvas.add(rect);
+  canvas.add(chair);
 }
 
-function addLight(){
-  const circle = new fabric.Circle({
+/* ===== 譜面台 ===== */
+function addStand(){
+  const stand = new fabric.Group([
+    new fabric.Rect({
+      width:30,
+      height:20,
+      fill:"#333",
+      top:-10
+    }),
+    new fabric.Rect({
+      width:4,
+      height:40,
+      fill:"#333",
+      top:10
+    })
+  ],{
+    left:120,
+    top:120
+  });
+
+  canvas.add(stand);
+}
+
+/* ===== 楽器 ===== */
+function addInstrument(icon){
+  const text = new fabric.Text(icon,{
+    fontSize:28,
     left:150,
-    top:150,
-    radius:40,
-    fill:'rgba(255,255,0,0.4)'
+    top:150
   });
-  canvas.add(circle);
-}
 
-function addText(){
-  const text = new fabric.IText('立ち位置',{
-    left:200,
-    top:200
-  });
   canvas.add(text);
 }
 
+/* ===== 削除キー ===== */
+document.addEventListener("keydown",e=>{
+  if(e.key==="Delete"){
+    const obj = canvas.getActiveObject();
+    if(obj) canvas.remove(obj);
+  }
+});
+
+/* ===== 保存 ===== */
 function save(){
   localStorage.setItem(
-    "stageData",
+    "bandStage",
     JSON.stringify(canvas.toJSON())
   );
 }
 
+/* ===== 読込 ===== */
 function load(){
-  const data = localStorage.getItem("stageData");
+  const data = localStorage.getItem("bandStage");
   if(data){
     canvas.loadFromJSON(data,canvas.renderAll.bind(canvas));
   }
