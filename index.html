@@ -13,10 +13,11 @@ body{
 }
 
 #toolbar{
-  width:220px;
-  background:#f0f0f0;
+  width:240px;
+  background:#f2f2f2;
   padding:10px;
   border-right:2px solid #ccc;
+  overflow-y:auto;
 }
 
 button{
@@ -30,6 +31,14 @@ canvas{
   flex:1;
   cursor:grab;
 }
+
+.paletteItem{
+  background:#fff;
+  border:1px solid #aaa;
+  padding:6px;
+  margin:3px 0;
+  cursor:pointer;
+}
 </style>
 </head>
 
@@ -37,10 +46,15 @@ canvas{
 
 <div id="toolbar">
 <h3>追加</h3>
+
 <button onclick="addItem('stand')">譜面台</button>
 <button onclick="addItem('chair')">椅子</button>
-<button onclick="addInstrument()">楽器</button>
-<button onclick="addItem('step')">段差</button>
+<button onclick="addItem('step')">段</button>
+
+<button onclick="addInstrument()">新しい楽器を作る</button>
+
+<h4>楽器パレット</h4>
+<div id="instrumentPalette"></div>
 
 <hr>
 <button onclick="toggleView()">指揮者視点</button>
@@ -49,47 +63,73 @@ canvas{
 <canvas id="stage"></canvas>
 
 <script>
-const canvas = document.getElementById("stage");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("stage");
+const ctx=canvas.getContext("2d");
 
 function resize(){
-  canvas.width = window.innerWidth - 220;
-  canvas.height = window.innerHeight;
+  canvas.width=window.innerWidth-240;
+  canvas.height=window.innerHeight;
 }
 resize();
-window.onresize = resize;
+window.onresize=resize;
 
 let conductorView=false;
-
 const items=[];
+const instrumentPalette=[];
+
 let dragging=null;
-let offsetX=0, offsetY=0;
+let resizing=null;
+let offsetX=0,offsetY=0;
 
 function addItem(type){
   items.push({
     type,
     x:150,
     y:150,
-    w:80,
-    h:40,
+    w:120,
+    h:60,
     linkedInstrument:null
   });
   draw();
 }
 
+/* ========= 楽器追加 ========= */
 function addInstrument(){
-  const name = prompt("楽器名を入力");
+  const name=prompt("楽器名");
   if(!name) return;
 
+  if(!instrumentPalette.includes(name)){
+    instrumentPalette.push(name);
+    refreshPalette();
+  }
+
+  createInstrument(name);
+}
+
+function createInstrument(name){
   items.push({
     type:"instrument",
     name,
     x:200,
     y:200,
-    w:90,
-    h:40
+    w:100,
+    h:40,
+    hidden:false
   });
   draw();
+}
+
+function refreshPalette(){
+  const div=document.getElementById("instrumentPalette");
+  div.innerHTML="";
+
+  instrumentPalette.forEach(name=>{
+    const el=document.createElement("div");
+    el.className="paletteItem";
+    el.textContent=name;
+    el.onclick=()=>createInstrument(name);
+    div.appendChild(el);
+  });
 }
 
 function toggleView(){
@@ -97,9 +137,7 @@ function toggleView(){
   draw();
 }
 
-/* =====================
-   描画（黒固定）
-===================== */
+/* ========= 描画 ========= */
 function draw(){
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -117,53 +155,48 @@ function draw(){
   ctx.font="14px sans-serif";
   ctx.textAlign="center";
 
-  items.forEach(obj=>{
+  items.forEach(o=>{
 
-    /* 段差 */
-    if(obj.type==="step"){
-      ctx.strokeRect(obj.x,obj.y,obj.w,obj.h);
-      ctx.fillText("段",obj.x+obj.w/2,obj.y+25);
+    /* 非表示楽器は描画しない */
+    if(o.hidden) return;
+
+    if(o.type==="step"){
+      ctx.strokeRect(o.x,o.y,o.w,o.h);
+      ctx.fillText("段",o.x+o.w/2,o.y+25);
+
+      /* リサイズハンドル */
+      ctx.fillRect(o.x+o.w-8,o.y+o.h-8,8,8);
     }
 
-    /* 譜面台（T字） */
-    if(obj.type==="stand"){
+    if(o.type==="stand"){
       ctx.beginPath();
-      ctx.moveTo(obj.x+40,obj.y);
-      ctx.lineTo(obj.x+40,obj.y+40);
-      ctx.moveTo(obj.x+20,obj.y);
-      ctx.lineTo(obj.x+60,obj.y);
+      ctx.moveTo(o.x+40,o.y);
+      ctx.lineTo(o.x+40,o.y+40);
+      ctx.moveTo(o.x+20,o.y);
+      ctx.lineTo(o.x+60,o.y);
       ctx.stroke();
     }
 
-    /* 椅子（○） */
-    if(obj.type==="chair"){
+    if(o.type==="chair"){
       ctx.beginPath();
-      ctx.arc(obj.x+20,obj.y+20,20,0,Math.PI*2);
+      ctx.arc(o.x+20,o.y+20,20,0,Math.PI*2);
       ctx.stroke();
 
-      if(obj.linkedInstrument){
-        ctx.fillText(
-          obj.linkedInstrument,
-          obj.x+20,
-          obj.y+25
-        );
+      if(o.linkedInstrument){
+        ctx.fillText(o.linkedInstrument,o.x+20,o.y+25);
       }
     }
 
-    /* 楽器 */
-    if(obj.type==="instrument"){
-      ctx.strokeRect(obj.x,obj.y,obj.w,obj.h);
-      ctx.fillText(obj.name,obj.x+obj.w/2,obj.y+25);
+    if(o.type==="instrument"){
+      ctx.strokeRect(o.x,o.y,o.w,o.h);
+      ctx.fillText(o.name,o.x+o.w/2,o.y+25);
     }
-
   });
 
   ctx.restore();
 }
 
-/* =====================
-   ドラッグ処理（修正版）
-===================== */
+/* ========= マウス操作 ========= */
 
 canvas.addEventListener("mousedown",e=>{
   const rect=canvas.getBoundingClientRect();
@@ -173,45 +206,68 @@ canvas.addEventListener("mousedown",e=>{
   for(let i=items.length-1;i>=0;i--){
     const o=items[i];
 
+    /* 段のリサイズ判定 */
+    if(o.type==="step"){
+      if(
+        mx>o.x+o.w-10 &&
+        mx<o.x+o.w &&
+        my>o.y+o.h-10 &&
+        my<o.y+o.h
+      ){
+        resizing=o;
+        return;
+      }
+    }
+
     if(mx>o.x && mx<o.x+o.w &&
        my>o.y && my<o.y+o.h){
 
       dragging=o;
       offsetX=mx-o.x;
       offsetY=my-o.y;
-      canvas.style.cursor="grabbing";
       return;
     }
   }
 });
 
 canvas.addEventListener("mousemove",e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const my=e.clientY-rect.top;
+
+  if(resizing){
+    resizing.w=Math.max(40,mx-resizing.x);
+    resizing.h=Math.max(20,my-resizing.y);
+    draw();
+    return;
+  }
+
   if(!dragging) return;
 
-  const rect=canvas.getBoundingClientRect();
-  dragging.x=e.clientX-rect.left-offsetX;
-  dragging.y=e.clientY-rect.top-offsetY;
+  dragging.x=mx-offsetX;
+  dragging.y=my-offsetY;
 
   checkLink();
-  draw();   // ← 毎回再描画（重要修正）
+  draw();
 });
 
 canvas.addEventListener("mouseup",()=>{
   dragging=null;
-  canvas.style.cursor="grab";
+  resizing=null;
 });
 
 canvas.addEventListener("mouseleave",()=>{
   dragging=null;
+  resizing=null;
 });
 
-/* =====================
-   椅子と楽器リンク
-===================== */
+/* ========= 椅子リンク ========= */
 function checkLink(){
 
   const chairs=items.filter(i=>i.type==="chair");
   const instruments=items.filter(i=>i.type==="instrument");
+
+  instruments.forEach(i=>i.hidden=false);
 
   chairs.forEach(c=>{
     c.linkedInstrument=null;
@@ -224,6 +280,7 @@ function checkLink(){
         inst.y+inst.h > c.y
       ){
         c.linkedInstrument=inst.name;
+        inst.hidden=true; // ← 非表示化
       }
     });
   });
@@ -231,6 +288,5 @@ function checkLink(){
 
 draw();
 </script>
-
 </body>
 </html>
