@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>吹奏楽配置アプリ</title>
+<title>吹奏楽ステージ配置</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
 
@@ -14,7 +14,7 @@ body{
 }
 
 #palette{
-  width:230px;
+  width:220px;
   background:#222;
   color:white;
   padding:10px;
@@ -25,18 +25,17 @@ body{
   margin:8px 0;
   padding:10px;
   text-align:center;
-  cursor:grab;
   border-radius:6px;
+  cursor:pointer;
 }
 
-#stageWrapper{
-  flex:1;
-  padding:10px;
+.selected{
+  background:#2ecc71;
 }
 
 canvas{
-  border:2px solid #999;
   background:white;
+  border:2px solid #888;
 }
 </style>
 </head>
@@ -44,51 +43,48 @@ canvas{
 <body>
 
 <div id="palette">
-<h3>ドラッグ配置</h3>
+<h3>配置する物</h3>
 
-<div class="item" draggable="true" data-type="chair">椅子</div>
-<div class="item" draggable="true" data-type="stand">譜面台</div>
-<div class="item" draggable="true" data-type="step">段差</div>
-<div class="item" draggable="true" data-type="instrument">楽器</div>
+<div class="item" data-type="chair">椅子 ○</div>
+<div class="item" data-type="stand">譜面台 T</div>
+<div class="item" data-type="step">段差</div>
+<div class="item" data-type="instrument">楽器</div>
 
 <input id="instName" placeholder="楽器名">
 </div>
 
-<div id="stageWrapper">
 <canvas id="c" width="1000" height="650"></canvas>
-</div>
 
 <script>
 const canvas=new fabric.Canvas('c');
-const wrapper=document.getElementById("stageWrapper");
+
+let selectedType=null;
 
 /* =====================
-   Drag情報
+   パレット選択
 ===================== */
 
-let dragType=null;
-
 document.querySelectorAll(".item").forEach(el=>{
-  el.addEventListener("dragstart",e=>{
-    dragType=el.dataset.type;
-  });
+  el.onclick=()=>{
+    document.querySelectorAll(".item")
+      .forEach(i=>i.classList.remove("selected"));
+
+    el.classList.add("selected");
+    selectedType=el.dataset.type;
+  };
 });
 
 /* =====================
-   Drop（完全修正版）
+   キャンバスクリック配置
 ===================== */
 
-wrapper.addEventListener("dragover",e=>e.preventDefault());
+canvas.on("mouse:down",function(opt){
 
-wrapper.addEventListener("drop",e=>{
-  e.preventDefault();
+  if(!selectedType) return;
 
-  const rect=canvas.upperCanvasEl.getBoundingClientRect();
+  const pointer=canvas.getPointer(opt.e);
 
-  const x=e.clientX-rect.left;
-  const y=e.clientY-rect.top;
-
-  createObject(dragType,x,y);
+  createObject(selectedType,pointer.x,pointer.y);
 });
 
 /* =====================
@@ -98,8 +94,8 @@ wrapper.addEventListener("drop",e=>{
 function createChair(x,y){
 
   const circle=new fabric.Circle({
-    radius:18,
-    fill:"#ffffff",
+    radius:20,
+    fill:"#fff",
     stroke:"#000",
     strokeWidth:2,
     originX:"center",
@@ -163,9 +159,7 @@ function createStep(x,y){
   });
 
   const text=new fabric.Text("STEP "+stepNo,{
-    fontSize:14,
-    left:40,
-    top:20
+    fontSize:14,left:40,top:20
   });
 
   const g=new fabric.Group([top,side,text],{
@@ -186,7 +180,8 @@ function createStep(x,y){
 
 function createInstrument(x,y){
 
-  const name=document.getElementById("instName").value||"Inst";
+  const name=
+    document.getElementById("instName").value || "Inst";
 
   const text=new fabric.Text(name,{
     fontSize:16,
@@ -201,7 +196,7 @@ function createInstrument(x,y){
 }
 
 /* =====================
-   生成分岐
+   分岐
 ===================== */
 
 function createObject(type,x,y){
@@ -225,19 +220,16 @@ canvas.on("object:moving",e=>{
 
   canvas.getObjects().forEach(o=>{
     if(o.typeTag==="chair"){
-
       const dx=o.left-obj.left;
       const dy=o.top-obj.top;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-
-      if(dist<30) linked=o;
+      if(Math.sqrt(dx*dx+dy*dy)<35)
+        linked=o;
     }
   });
 
   canvas.getObjects().forEach(o=>{
-    if(o.typeTag==="chair"){
+    if(o.typeTag==="chair")
       o.label.text="";
-    }
   });
 
   if(linked){
