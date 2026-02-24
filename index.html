@@ -16,7 +16,7 @@ body{
 
 /* ===== パレット ===== */
 #palette{
-  width:220px;
+  width:240px;
   background:#222;
   color:white;
   padding:10px;
@@ -31,10 +31,6 @@ body{
   cursor:grab;
 }
 
-.paletteItem:active{
-  cursor:grabbing;
-}
-
 #stageArea{
   flex:1;
   padding:10px;
@@ -44,6 +40,12 @@ canvas{
   background:white;
   border:2px solid #999;
 }
+
+input,button{
+  width:100%;
+  margin-top:6px;
+  padding:6px;
+}
 </style>
 </head>
 
@@ -52,10 +54,12 @@ canvas{
 <div id="palette">
   <h3>ドラッグして配置</h3>
 
-  <div class="paletteItem" draggable="true" data-type="chair">🪑 椅子</div>
-  <div class="paletteItem" draggable="true" data-type="stand">🎼 譜面台</div>
-  <div class="paletteItem" draggable="true" data-type="trumpet">🎺 トランペット</div>
-  <div class="paletteItem" draggable="true" data-type="sax">🎷 サックス</div>
+  <div id="items"></div>
+
+  <hr>
+
+  <input id="instName" placeholder="楽器名を入力">
+  <button onclick="addNewInstrument()">楽器を追加</button>
 </div>
 
 <div id="stageArea">
@@ -65,41 +69,74 @@ canvas{
 <script>
 const canvas = new fabric.Canvas('c');
 
-/* =========================
-   HTML → Canvas Drag & Drop
-========================= */
+const itemsDiv=document.getElementById("items");
 
-let dragType=null;
+/* =====================
+   パレット生成
+===================== */
 
-document.querySelectorAll(".paletteItem").forEach(el=>{
-  el.addEventListener("dragstart",e=>{
-    dragType = el.dataset.type;
+function createPaletteItem(name,type,icon){
+  const div=document.createElement("div");
+  div.className="paletteItem";
+  div.textContent=icon+" "+name;
+  div.draggable=true;
+
+  div.addEventListener("dragstart",e=>{
+    e.dataTransfer.setData("type",type);
+    e.dataTransfer.setData("icon",icon);
+    e.dataTransfer.setData("name",name);
   });
-});
 
-canvas.upperCanvasEl.addEventListener("dragover",e=>{
+  itemsDiv.appendChild(div);
+}
+
+/* 初期アイテム */
+createPaletteItem("椅子","chair","🪑");
+createPaletteItem("譜面台","stand","🎼");
+createPaletteItem("トランペット","instrument","🎺");
+createPaletteItem("サックス","instrument","🎷");
+
+/* =====================
+   楽器追加機能
+===================== */
+
+function addNewInstrument(){
+  const name=document.getElementById("instName").value.trim();
+  if(!name) return;
+
+  createPaletteItem(name,"instrument","🎵");
+  document.getElementById("instName").value="";
+}
+
+/* =====================
+   Drop処理（修正版）
+===================== */
+
+const canvasContainer=canvas.upperCanvasEl;
+
+canvasContainer.addEventListener("dragover",e=>{
   e.preventDefault();
 });
 
-canvas.upperCanvasEl.addEventListener("drop",e=>{
+canvasContainer.addEventListener("drop",e=>{
   e.preventDefault();
 
-  const rect = canvas.upperCanvasEl.getBoundingClientRect();
+  const type=e.dataTransfer.getData("type");
+  const icon=e.dataTransfer.getData("icon");
 
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const pointer=canvas.getPointer(e);
 
-  createObject(dragType,x,y);
+  createObject(type,icon,pointer.x,pointer.y);
 });
 
-/* =========================
+/* =====================
    オブジェクト生成
-========================= */
+===================== */
 
-function createObject(type,x,y){
+function createObject(type,icon,x,y){
 
   if(type==="chair"){
-    const chair = new fabric.Rect({
+    const chair=new fabric.Rect({
       left:x,
       top:y,
       width:35,
@@ -109,12 +146,11 @@ function createObject(type,x,y){
       ry:5
     });
     chair.typeTag="chair";
-    chair.occupied=false;
     canvas.add(chair);
   }
 
   if(type==="stand"){
-    const stand = new fabric.Group([
+    const stand=new fabric.Group([
       new fabric.Rect({width:30,height:20,fill:"#333",top:-10}),
       new fabric.Rect({width:4,height:40,fill:"#333",top:10})
     ],{left:x,top:y});
@@ -122,58 +158,47 @@ function createObject(type,x,y){
     canvas.add(stand);
   }
 
-  if(type==="trumpet" || type==="sax"){
-    const icon = type==="trumpet"?"🎺":"🎷";
-
-    const inst = new fabric.Text(icon,{
+  if(type==="instrument"){
+    const inst=new fabric.Text(icon,{
       left:x,
       top:y,
       fontSize:30
     });
-
     inst.typeTag="instrument";
     inst.linkedChair=null;
     canvas.add(inst);
   }
 }
 
-/* =========================
+/* =====================
    椅子リンク判定
-========================= */
+===================== */
 
-canvas.on("object:moving",function(e){
+canvas.on("object:moving",e=>{
 
   const obj=e.target;
-
   if(obj.typeTag!=="instrument") return;
 
   let linked=null;
 
   canvas.getObjects().forEach(o=>{
     if(o.typeTag==="chair"){
-
       const dx=o.left-obj.left;
       const dy=o.top-obj.top;
       const dist=Math.sqrt(dx*dx+dy*dy);
 
-      if(dist<40){
-        linked=o;
-      }
+      if(dist<40) linked=o;
     }
   });
 
-  /* 全椅子リセット */
   canvas.getObjects().forEach(o=>{
     if(o.typeTag==="chair"){
       o.set("fill","#8b5a2b");
-      o.occupied=false;
     }
   });
 
-  /* リンク成立 */
   if(linked){
     linked.set("fill","#2ecc71");
-    linked.occupied=true;
     obj.linkedChair=linked;
   }else{
     obj.linkedChair=null;
@@ -182,9 +207,9 @@ canvas.on("object:moving",function(e){
   canvas.renderAll();
 });
 
-/* =========================
-   Deleteキー削除
-========================= */
+/* =====================
+   Delete削除
+===================== */
 
 document.addEventListener("keydown",e=>{
   if(e.key==="Delete"){
