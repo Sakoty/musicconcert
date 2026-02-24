@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>舞台配置エディタ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+<style>
+body{
+  margin:0;
+  font-family:sans-serif;
+}
+#toolbar{
+  padding:10px;
+  background:#222;
+}
+button{
+  margin-right:5px;
+}
+canvas{
+  border:1px solid #ccc;
+}
+</style>
+</head>
+
+<body>
+
+<div id="toolbar">
+  <button onclick="addStage()">舞台</button>
+  <button onclick="addLight()">照明</button>
+  <button onclick="addText()">テキスト</button>
+  <button onclick="save()">保存</button>
+  <button onclick="load()">読込</button>
+</div>
+
+<canvas id="c" width="1000" height="600"></canvas>
+
+<script>
+const canvas = new fabric.Canvas('c');
+
+function addStage(){
+  const rect = new fabric.Rect({
+    left:100,
+    top:100,
+    fill:'#888',
+    width:200,
+    height:100
+  });
+  canvas.add(rect);
+}
+
+function addLight(){
+  const circle = new fabric.Circle({
+    left:150,
+    top:150,
+    radius:40,
+    fill:'rgba(255,255,0,0.4)'
+  });
+  canvas.add(circle);
+}
+
+function addText(){
+  const text = new fabric.IText('立ち位置',{
+    left:200,
+    top:200
+  });
+  canvas.add(text);
+}
+
+function save(){
+  localStorage.setItem(
+    "stageData",
+    JSON.stringify(canvas.toJSON())
+  );
+}
+
+function load(){
+  const data = localStorage.getItem("stageData");
+  if(data){
+    canvas.loadFromJSON(data,canvas.renderAll.bind(canvas));
+  }
+}
+</script>
+
+</body>
+</html>
