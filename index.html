@@ -14,7 +14,6 @@ body{
   background:#f0f2f5;
 }
 
-/* ===== パレット ===== */
 #palette{
   width:240px;
   background:#222;
@@ -53,13 +52,12 @@ input,button{
 
 <div id="palette">
   <h3>ドラッグして配置</h3>
-
   <div id="items"></div>
 
   <hr>
 
-  <input id="instName" placeholder="楽器名を入力">
-  <button onclick="addNewInstrument()">楽器を追加</button>
+  <input id="instName" placeholder="楽器名">
+  <button onclick="addNewInstrument()">楽器追加</button>
 </div>
 
 <div id="stageArea">
@@ -67,13 +65,13 @@ input,button{
 </div>
 
 <script>
-const canvas = new fabric.Canvas('c');
+const canvas=new fabric.Canvas('c');
 
 const itemsDiv=document.getElementById("items");
 
-/* =====================
+/* ======================
    パレット生成
-===================== */
+====================== */
 
 function createPaletteItem(name,type,icon){
   const div=document.createElement("div");
@@ -84,21 +82,21 @@ function createPaletteItem(name,type,icon){
   div.addEventListener("dragstart",e=>{
     e.dataTransfer.setData("type",type);
     e.dataTransfer.setData("icon",icon);
-    e.dataTransfer.setData("name",name);
   });
 
   itemsDiv.appendChild(div);
 }
 
-/* 初期アイテム */
+/* 初期 */
 createPaletteItem("椅子","chair","🪑");
 createPaletteItem("譜面台","stand","🎼");
+createPaletteItem("段差ブロック","step","⬛");
 createPaletteItem("トランペット","instrument","🎺");
 createPaletteItem("サックス","instrument","🎷");
 
-/* =====================
-   楽器追加機能
-===================== */
+/* ======================
+   楽器追加
+====================== */
 
 function addNewInstrument(){
   const name=document.getElementById("instName").value.trim();
@@ -108,42 +106,84 @@ function addNewInstrument(){
   document.getElementById("instName").value="";
 }
 
-/* =====================
-   Drop処理（修正版）
-===================== */
+/* ======================
+   Drop処理
+====================== */
 
-const canvasContainer=canvas.upperCanvasEl;
+const canvasEl=canvas.upperCanvasEl;
 
-canvasContainer.addEventListener("dragover",e=>{
-  e.preventDefault();
-});
+canvasEl.addEventListener("dragover",e=>e.preventDefault());
 
-canvasContainer.addEventListener("drop",e=>{
+canvasEl.addEventListener("drop",e=>{
   e.preventDefault();
 
   const type=e.dataTransfer.getData("type");
   const icon=e.dataTransfer.getData("icon");
 
-  const pointer=canvas.getPointer(e);
-
-  createObject(type,icon,pointer.x,pointer.y);
+  const p=canvas.getPointer(e);
+  createObject(type,icon,p.x,p.y);
 });
 
-/* =====================
+/* ======================
+   段差生成（NEW）
+====================== */
+
+let stepCount=1;
+
+function createStep(x,y){
+
+  const top=new fabric.Rect({
+    width:160,
+    height:60,
+    fill:"#cfcfcf",
+    originY:"center"
+  });
+
+  const side=new fabric.Rect({
+    width:160,
+    height:18,
+    fill:"#9a9a9a",
+    top:30,
+    originY:"center"
+  });
+
+  const label=new fabric.Text(
+    "STEP "+stepCount,{
+      fontSize:14,
+      top:-18,
+      fill:"#333",
+      originX:"center"
+    });
+
+  const group=new fabric.Group(
+    [top,side,label],
+    {left:x,top:y}
+  );
+
+  group.typeTag="step";
+  group.stepLevel=stepCount;
+
+  stepCount++;
+
+  canvas.add(group);
+  group.sendToBack(); // 床扱い
+}
+
+/* ======================
    オブジェクト生成
-===================== */
+====================== */
 
 function createObject(type,icon,x,y){
 
+  if(type==="step"){
+    createStep(x,y);
+    return;
+  }
+
   if(type==="chair"){
     const chair=new fabric.Rect({
-      left:x,
-      top:y,
-      width:35,
-      height:35,
-      fill:"#8b5a2b",
-      rx:5,
-      ry:5
+      left:x,top:y,width:35,height:35,
+      fill:"#8b5a2b",rx:5,ry:5
     });
     chair.typeTag="chair";
     canvas.add(chair);
@@ -160,9 +200,7 @@ function createObject(type,icon,x,y){
 
   if(type==="instrument"){
     const inst=new fabric.Text(icon,{
-      left:x,
-      top:y,
-      fontSize:30
+      left:x,top:y,fontSize:30
     });
     inst.typeTag="instrument";
     inst.linkedChair=null;
@@ -170,12 +208,11 @@ function createObject(type,icon,x,y){
   }
 }
 
-/* =====================
-   椅子リンク判定
-===================== */
+/* ======================
+   椅子リンク
+====================== */
 
 canvas.on("object:moving",e=>{
-
   const obj=e.target;
   if(obj.typeTag!=="instrument") return;
 
@@ -185,31 +222,26 @@ canvas.on("object:moving",e=>{
     if(o.typeTag==="chair"){
       const dx=o.left-obj.left;
       const dy=o.top-obj.top;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-
-      if(dist<40) linked=o;
+      if(Math.sqrt(dx*dx+dy*dy)<40) linked=o;
     }
   });
 
   canvas.getObjects().forEach(o=>{
-    if(o.typeTag==="chair"){
+    if(o.typeTag==="chair")
       o.set("fill","#8b5a2b");
-    }
   });
 
   if(linked){
     linked.set("fill","#2ecc71");
     obj.linkedChair=linked;
-  }else{
-    obj.linkedChair=null;
   }
 
   canvas.renderAll();
 });
 
-/* =====================
+/* ======================
    Delete削除
-===================== */
+====================== */
 
 document.addEventListener("keydown",e=>{
   if(e.key==="Delete"){
