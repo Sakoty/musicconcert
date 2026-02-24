@@ -2,253 +2,234 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>吹奏楽ステージ配置</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+<title>吹奏楽 舞台配置エディタ</title>
 
 <style>
 body{
   margin:0;
-  display:flex;
   font-family:sans-serif;
+  display:flex;
+  height:100vh;
 }
 
-#palette{
+#toolbar{
   width:220px;
-  background:#222;
-  color:white;
+  background:#f0f0f0;
   padding:10px;
+  border-right:2px solid #ccc;
 }
 
-.item{
-  background:#444;
-  margin:8px 0;
-  padding:10px;
-  text-align:center;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-.selected{
-  background:#2ecc71;
+button{
+  width:100%;
+  margin:4px 0;
+  padding:8px;
 }
 
 canvas{
   background:white;
-  border:2px solid #888;
+  flex:1;
+  cursor:grab;
 }
 </style>
 </head>
 
 <body>
 
-<div id="palette">
-<h3>配置する物</h3>
+<div id="toolbar">
+<h3>追加</h3>
+<button onclick="addItem('stand')">譜面台</button>
+<button onclick="addItem('chair')">椅子</button>
+<button onclick="addInstrument()">楽器</button>
+<button onclick="addItem('step')">段差</button>
 
-<div class="item" data-type="chair">椅子 ○</div>
-<div class="item" data-type="stand">譜面台 T</div>
-<div class="item" data-type="step">段差</div>
-<div class="item" data-type="instrument">楽器</div>
-
-<input id="instName" placeholder="楽器名">
+<hr>
+<button onclick="toggleView()">指揮者視点</button>
 </div>
 
-<canvas id="c" width="1000" height="650"></canvas>
+<canvas id="stage"></canvas>
 
 <script>
-const canvas=new fabric.Canvas('c');
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d");
 
-let selectedType=null;
+function resize(){
+  canvas.width = window.innerWidth - 220;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.onresize = resize;
 
-/* =====================
-   パレット選択
-===================== */
+let conductorView=false;
 
-document.querySelectorAll(".item").forEach(el=>{
-  el.onclick=()=>{
-    document.querySelectorAll(".item")
-      .forEach(i=>i.classList.remove("selected"));
+const items=[];
+let dragging=null;
+let offsetX=0, offsetY=0;
 
-    el.classList.add("selected");
-    selectedType=el.dataset.type;
-  };
-});
-
-/* =====================
-   キャンバスクリック配置
-===================== */
-
-canvas.on("mouse:down",function(opt){
-
-  if(!selectedType) return;
-
-  const pointer=canvas.getPointer(opt.e);
-
-  createObject(selectedType,pointer.x,pointer.y);
-});
-
-/* =====================
-   椅子（○）
-===================== */
-
-function createChair(x,y){
-
-  const circle=new fabric.Circle({
-    radius:20,
-    fill:"#fff",
-    stroke:"#000",
-    strokeWidth:2,
-    originX:"center",
-    originY:"center"
+function addItem(type){
+  items.push({
+    type,
+    x:150,
+    y:150,
+    w:80,
+    h:40,
+    linkedInstrument:null
   });
+  draw();
+}
 
-  const label=new fabric.Text("",{
-    fontSize:12,
-    originX:"center",
-    originY:"center"
+function addInstrument(){
+  const name = prompt("楽器名を入力");
+  if(!name) return;
+
+  items.push({
+    type:"instrument",
+    name,
+    x:200,
+    y:200,
+    w:90,
+    h:40
   });
+  draw();
+}
 
-  const group=new fabric.Group([circle,label],{
-    left:x,
-    top:y
-  });
-
-  group.typeTag="chair";
-  group.label=label;
-
-  canvas.add(group);
+function toggleView(){
+  conductorView=!conductorView;
+  draw();
 }
 
 /* =====================
-   譜面台（T字）
+   描画（黒固定）
 ===================== */
+function draw(){
 
-function createStand(x,y){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  const top=new fabric.Rect({
-    width:30,height:6,fill:"#000",top:-12
-  });
+  ctx.save();
 
-  const pole=new fabric.Rect({
-    width:4,height:30,fill:"#000"
-  });
+  if(conductorView){
+    ctx.translate(canvas.width,0);
+    ctx.scale(-1,1);
+  }
 
-  const stand=new fabric.Group([top,pole],{
-    left:x,
-    top:y
-  });
+  ctx.lineWidth=2;
+  ctx.strokeStyle="black";
+  ctx.fillStyle="black";
+  ctx.font="14px sans-serif";
+  ctx.textAlign="center";
 
-  stand.typeTag="stand";
-  canvas.add(stand);
-}
+  items.forEach(obj=>{
 
-/* =====================
-   段差
-===================== */
-
-let stepNo=1;
-
-function createStep(x,y){
-
-  const top=new fabric.Rect({
-    width:160,height:60,fill:"#d0d0d0"
-  });
-
-  const side=new fabric.Rect({
-    width:160,height:15,fill:"#999",top:60
-  });
-
-  const text=new fabric.Text("STEP "+stepNo,{
-    fontSize:14,left:40,top:20
-  });
-
-  const g=new fabric.Group([top,side,text],{
-    left:x,
-    top:y
-  });
-
-  g.typeTag="step";
-  stepNo++;
-
-  canvas.add(g);
-  g.sendToBack();
-}
-
-/* =====================
-   楽器
-===================== */
-
-function createInstrument(x,y){
-
-  const name=
-    document.getElementById("instName").value || "Inst";
-
-  const text=new fabric.Text(name,{
-    fontSize:16,
-    left:x,
-    top:y
-  });
-
-  text.typeTag="instrument";
-  text.instrumentName=name;
-
-  canvas.add(text);
-}
-
-/* =====================
-   分岐
-===================== */
-
-function createObject(type,x,y){
-
-  if(type==="chair") createChair(x,y);
-  if(type==="stand") createStand(x,y);
-  if(type==="step") createStep(x,y);
-  if(type==="instrument") createInstrument(x,y);
-}
-
-/* =====================
-   椅子リンク
-===================== */
-
-canvas.on("object:moving",e=>{
-
-  const obj=e.target;
-  if(obj.typeTag!=="instrument") return;
-
-  let linked=null;
-
-  canvas.getObjects().forEach(o=>{
-    if(o.typeTag==="chair"){
-      const dx=o.left-obj.left;
-      const dy=o.top-obj.top;
-      if(Math.sqrt(dx*dx+dy*dy)<35)
-        linked=o;
+    /* 段差 */
+    if(obj.type==="step"){
+      ctx.strokeRect(obj.x,obj.y,obj.w,obj.h);
+      ctx.fillText("段",obj.x+obj.w/2,obj.y+25);
     }
+
+    /* 譜面台（T字） */
+    if(obj.type==="stand"){
+      ctx.beginPath();
+      ctx.moveTo(obj.x+40,obj.y);
+      ctx.lineTo(obj.x+40,obj.y+40);
+      ctx.moveTo(obj.x+20,obj.y);
+      ctx.lineTo(obj.x+60,obj.y);
+      ctx.stroke();
+    }
+
+    /* 椅子（○） */
+    if(obj.type==="chair"){
+      ctx.beginPath();
+      ctx.arc(obj.x+20,obj.y+20,20,0,Math.PI*2);
+      ctx.stroke();
+
+      if(obj.linkedInstrument){
+        ctx.fillText(
+          obj.linkedInstrument,
+          obj.x+20,
+          obj.y+25
+        );
+      }
+    }
+
+    /* 楽器 */
+    if(obj.type==="instrument"){
+      ctx.strokeRect(obj.x,obj.y,obj.w,obj.h);
+      ctx.fillText(obj.name,obj.x+obj.w/2,obj.y+25);
+    }
+
   });
 
-  canvas.getObjects().forEach(o=>{
-    if(o.typeTag==="chair")
-      o.label.text="";
-  });
+  ctx.restore();
+}
 
-  if(linked){
-    linked.label.text=obj.instrumentName;
+/* =====================
+   ドラッグ処理（修正版）
+===================== */
+
+canvas.addEventListener("mousedown",e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const my=e.clientY-rect.top;
+
+  for(let i=items.length-1;i>=0;i--){
+    const o=items[i];
+
+    if(mx>o.x && mx<o.x+o.w &&
+       my>o.y && my<o.y+o.h){
+
+      dragging=o;
+      offsetX=mx-o.x;
+      offsetY=my-o.y;
+      canvas.style.cursor="grabbing";
+      return;
+    }
   }
+});
 
-  canvas.requestRenderAll();
+canvas.addEventListener("mousemove",e=>{
+  if(!dragging) return;
+
+  const rect=canvas.getBoundingClientRect();
+  dragging.x=e.clientX-rect.left-offsetX;
+  dragging.y=e.clientY-rect.top-offsetY;
+
+  checkLink();
+  draw();   // ← 毎回再描画（重要修正）
+});
+
+canvas.addEventListener("mouseup",()=>{
+  dragging=null;
+  canvas.style.cursor="grab";
+});
+
+canvas.addEventListener("mouseleave",()=>{
+  dragging=null;
 });
 
 /* =====================
-   Delete削除
+   椅子と楽器リンク
 ===================== */
+function checkLink(){
 
-document.addEventListener("keydown",e=>{
-  if(e.key==="Delete"){
-    const obj=canvas.getActiveObject();
-    if(obj) canvas.remove(obj);
-  }
-});
+  const chairs=items.filter(i=>i.type==="chair");
+  const instruments=items.filter(i=>i.type==="instrument");
+
+  chairs.forEach(c=>{
+    c.linkedInstrument=null;
+
+    instruments.forEach(inst=>{
+      if(
+        inst.x < c.x+40 &&
+        inst.x+inst.w > c.x &&
+        inst.y < c.y+40 &&
+        inst.y+inst.h > c.y
+      ){
+        c.linkedInstrument=inst.name;
+      }
+    });
+  });
+}
+
+draw();
 </script>
 
 </body>
