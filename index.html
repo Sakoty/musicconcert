@@ -2,376 +2,291 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>舞台配置エディタ</title>
+<title>吹奏楽 舞台配置エディタ</title>
 
 <style>
 body{
   margin:0;
+  font-family:sans-serif;
   display:flex;
   height:100vh;
-  font-family:sans-serif;
 }
 
-#toolbar{
-  width:240px;
-  background:#f2f2f2;
+#palette{
+  width:220px;
+  background:#eee;
   padding:10px;
-  border-right:2px solid #ccc;
   overflow:auto;
 }
 
 .paletteItem{
   background:white;
-  border:1px solid #999;
-  padding:6px;
-  margin:4px 0;
+  border:1px solid #aaa;
+  padding:8px;
+  margin:5px 0;
   cursor:grab;
 }
 
 canvas{
   flex:1;
-  background:white;
+  background:#f8f8f8;
   touch-action:none;
 }
+button{margin:4px;}
 </style>
 </head>
 
 <body>
 
-<div id="toolbar">
+<div id="palette">
 <h3>パレット</h3>
 
 <div class="paletteItem" draggable="true" data-type="chair">椅子</div>
 <div class="paletteItem" draggable="true" data-type="stand">譜面台</div>
 <div class="paletteItem" draggable="true" data-type="step">段</div>
-<div class="paletteItem" draggable="true" data-type="spot">スポット照明</div>
+<div class="paletteItem" draggable="true" data-type="light">スポット照明</div>
 
 <hr>
-<button onclick="addInstrument()">＋楽器を追加</button>
-<div id="instrumentPalette"></div>
+
+<input id="instName" placeholder="楽器名">
+<button onclick="addInstrument()">楽器追加</button>
+
+<hr>
+<button onclick="toggleConductor()">指揮者視点</button>
 
 </div>
 
-<canvas id="stage"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
-const canvas=document.getElementById("stage");
+
+const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 
 function resize(){
-  canvas.width=window.innerWidth-240;
+  canvas.width=window.innerWidth-220;
   canvas.height=window.innerHeight;
 }
 resize();
 window.onresize=resize;
 
-const items=[];
-const instrumentPalette=[];
-let selectedItems=[];
-
-let dragging=false;
-let resizing=null;
+let objects=[];
+let selected=[];
+let dragging=null;
+let dragOffsetX=0;
+let dragOffsetY=0;
 let selecting=false;
-let selectionBox=null;
+let selectStart=null;
+let conductorMode=false;
 
-let startX=0,startY=0;
-
-/* ========= 楽器追加 ========= */
-
-function addInstrument(){
-  const name=prompt("楽器名を入力");
-  if(!name)return;
-
-  if(!instrumentPalette.includes(name)){
-    instrumentPalette.push(name);
-    refreshInstrumentPalette();
-  }
+function createObject(type,x,y,name=""){
+  return{
+    id:Date.now()+Math.random(),
+    type,
+    x,y,
+    w:120,
+    h:60,
+    name,
+    linkedChairId:null
+  };
 }
 
-function refreshInstrumentPalette(){
-  const div=document.getElementById("instrumentPalette");
-  div.innerHTML="";
-
-  instrumentPalette.forEach(name=>{
-    const el=document.createElement("div");
-    el.className="paletteItem";
-    el.textContent=name;
-    el.draggable=true;
-
-    el.addEventListener("dragstart",e=>{
-      e.dataTransfer.setData("instrument",name);
-    });
-
-    div.appendChild(el);
-  });
-}
-
-/* ========= パレットD&D ========= */
+/* ---------------- パレット ---------------- */
 
 document.querySelectorAll(".paletteItem").forEach(el=>{
   el.addEventListener("dragstart",e=>{
-    if(el.dataset.type)
-      e.dataTransfer.setData("type",el.dataset.type);
+    e.dataTransfer.setData("type",el.dataset.type);
   });
 });
 
 canvas.addEventListener("dragover",e=>e.preventDefault());
 
 canvas.addEventListener("drop",e=>{
-  e.preventDefault();
+  const type=e.dataTransfer.getData("type");
+  const rect=canvas.getBoundingClientRect();
+  objects.push(createObject(type,
+    e.clientX-rect.left,
+    e.clientY-rect.top
+  ));
+});
+
+/* ---------------- 楽器追加 ---------------- */
+
+function addInstrument(){
+  const name=document.getElementById("instName").value.trim();
+  if(!name)return;
+
+  const div=document.createElement("div");
+  div.className="paletteItem";
+  div.draggable=true;
+  div.textContent=name;
+  div.dataset.type="instrument";
+  div.dataset.name=name;
+
+  div.addEventListener("dragstart",e=>{
+    e.dataTransfer.setData("type","instrument");
+    e.dataTransfer.setData("name",name);
+  });
+
+  document.getElementById("palette").appendChild(div);
+}
+
+/* ---------------- 入力 ---------------- */
+
+canvas.onpointerdown=e=>{
   const rect=canvas.getBoundingClientRect();
   const x=e.clientX-rect.left;
   const y=e.clientY-rect.top;
 
-  const type=e.dataTransfer.getData("type");
-  const inst=e.dataTransfer.getData("instrument");
+  dragging=null;
 
-  if(type){
-    items.push({
-      type,
-      x,y,
-      w:120,
-      h:60,
-      resizable:(type==="step"||type==="spot")
-    });
+  for(let i=objects.length-1;i>=0;i--){
+    const o=objects[i];
+    if(Math.abs(o.x-x)<40 && Math.abs(o.y-y)<40){
+      dragging=o;
+      if(!selected.includes(o)) selected=[o];
+      dragOffsetX=x-o.x;
+      dragOffsetY=y-o.y;
+      return;
+    }
   }
 
-  if(inst){
-    items.push({
-      type:"instrument",
-      name:inst,
-      x,y,
-      w:100,
-      h:40
-    });
-  }
+  selecting=true;
+  selectStart={x,y};
+  selected=[];
+};
 
-  draw();
-});
-
-/* ========= 座標取得 ========= */
-
-function getPos(e){
+canvas.onpointermove=e=>{
   const rect=canvas.getBoundingClientRect();
-  if(e.touches){
-    return {
-      x:e.touches[0].clientX-rect.left,
-      y:e.touches[0].clientY-rect.top
-    };
-  }
-  return {
-    x:e.clientX-rect.left,
-    y:e.clientY-rect.top
-  };
-}
-
-/* ========= DOWN ========= */
-
-function pointerDown(e){
-
-  const p=getPos(e);
-  startX=p.x;
-  startY=p.y;
-
-  let clicked=null;
-
-  for(let i=items.length-1;i>=0;i--){
-    const o=items[i];
-
-    if(o.resizable){
-      if(p.x>o.x+o.w-10 &&
-         p.x<o.x+o.w &&
-         p.y>o.y+o.h-10 &&
-         p.y<o.y+o.h){
-        resizing=o;
-        return;
-      }
-    }
-
-    if(p.x>o.x && p.x<o.x+o.w &&
-       p.y>o.y && p.y<o.y+o.h){
-      clicked=o;
-      break;
-    }
-  }
-
-  if(clicked){
-    selectedItems=[clicked];
-    dragging=true;
-  }else{
-    selecting=true;
-    selectionBox={x:p.x,y:p.y,w:0,h:0};
-    selectedItems=[];
-  }
-
-  draw();
-}
-
-/* ========= MOVE ========= */
-
-function pointerMove(e){
-
-  const p=getPos(e);
-
-  if(resizing){
-    resizing.w=Math.max(30,p.x-resizing.x);
-    resizing.h=Math.max(30,p.y-resizing.y);
-    draw();
-    return;
-  }
+  const x=e.clientX-rect.left;
+  const y=e.clientY-rect.top;
 
   if(dragging){
-    const dx=p.x-startX;
-    const dy=p.y-startY;
+    const dx=x-dragging.x-dragOffsetX;
+    const dy=y-dragging.y-dragOffsetY;
 
-    selectedItems.forEach(o=>{
+    selected.forEach(o=>{
       o.x+=dx;
       o.y+=dy;
     });
-
-    startX=p.x;
-    startY=p.y;
-    draw();
-    return;
   }
+};
 
-  if(selecting){
-    selectionBox.w=p.x-selectionBox.x;
-    selectionBox.h=p.y-selectionBox.y;
-    draw();
-  }
-}
+canvas.onpointerup=()=>{
+  dragging=null;
+  selecting=false;
+};
 
-/* ========= UP ========= */
+/* ダブルクリック削除 */
+canvas.ondblclick=e=>{
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left;
+  const y=e.clientY-rect.top;
 
-function pointerUp(){
-
-  dragging=false;
-  resizing=null;
-
-  if(selecting){
-
-    const box=normalize(selectionBox);
-
-    selectedItems=items.filter(o=>
-      o.x>box.x &&
-      o.y>box.y &&
-      o.x+o.w<box.x+box.w &&
-      o.y+o.h<box.y+box.h
-    );
-
-    selecting=false;
-    selectionBox=null;
-  }
-
-  draw();
-}
-
-canvas.addEventListener("mousedown",pointerDown);
-canvas.addEventListener("mousemove",pointerMove);
-canvas.addEventListener("mouseup",pointerUp);
-
-canvas.addEventListener("touchstart",pointerDown);
-canvas.addEventListener("touchmove",pointerMove);
-canvas.addEventListener("touchend",pointerUp);
-
-/* ========= ダブルタップ削除 ========= */
-
-canvas.addEventListener("dblclick",deleteSelected);
-canvas.addEventListener("touchend",handleDoubleTap);
-
-let lastTap=0;
-function handleDoubleTap(e){
-  const now=Date.now();
-  if(now-lastTap<300){
-    deleteSelected();
-  }
-  lastTap=now;
-}
-
-function deleteSelected(){
-  selectedItems.forEach(sel=>{
-    const i=items.indexOf(sel);
-    if(i>-1) items.splice(i,1);
+  objects=objects.filter(o=>{
+    return !(Math.abs(o.x-x)<40 && Math.abs(o.y-y)<40);
   });
-  selectedItems=[];
-  draw();
+};
+
+/* ---------------- 自動リンク ---------------- */
+
+function autoLink(){
+  const chairs=objects.filter(o=>o.type==="chair");
+  const insts=objects.filter(o=>o.type==="instrument");
+
+  insts.forEach(inst=>{
+    inst.linkedChairId=null;
+
+    chairs.forEach(ch=>{
+      const d=Math.hypot(inst.x-ch.x,inst.y-ch.y);
+      if(d<40) inst.linkedChairId=ch.id;
+    });
+  });
 }
 
-/* ========= 補助 ========= */
-
-function normalize(b){
-  return {
-    x:Math.min(b.x,b.x+b.w),
-    y:Math.min(b.y,b.y+b.h),
-    w:Math.abs(b.w),
-    h:Math.abs(b.h)
-  };
-}
-
-/* ========= 描画 ========= */
+/* ---------------- 描画 ---------------- */
 
 function draw(){
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  autoLink();
 
-  items.forEach(o=>{
+  if(conductorMode){
+    ctx.save();
+    ctx.translate(canvas.width/2,canvas.height);
+    ctx.scale(1,-1);
+    ctx.translate(-canvas.width/2,-canvas.height);
+  }
 
+  ctx.lineWidth=2;
+  ctx.strokeStyle="#000";
+  ctx.fillStyle="#000";
+  ctx.font="12px sans-serif";
+  ctx.textAlign="center";
+
+  objects.forEach(o=>{
+
+    /* 段 */
+    if(o.type==="step"){
+      ctx.strokeRect(o.x-o.w/2,o.y-o.h/2,o.w,o.h);
+      ctx.fillText("段",o.x,o.y+4);
+    }
+
+    /* 椅子 */
     if(o.type==="chair"){
       ctx.beginPath();
-      ctx.arc(o.x+20,o.y+20,20,0,Math.PI*2);
+      ctx.arc(o.x,o.y,25,0,Math.PI*2);
       ctx.stroke();
+
+      const inst=objects.find(i=>
+        i.type==="instrument" &&
+        i.linkedChairId===o.id
+      );
+      if(inst){
+        ctx.fillText(inst.name,o.x,o.y+4);
+      }
     }
 
+    /* 譜面台 */
     if(o.type==="stand"){
       ctx.beginPath();
-      ctx.moveTo(o.x+40,o.y);
-      ctx.lineTo(o.x+40,o.y+40);
-      ctx.moveTo(o.x+20,o.y);
-      ctx.lineTo(o.x+60,o.y);
+      ctx.moveTo(o.x,o.y-20);
+      ctx.lineTo(o.x,o.y+20);
+      ctx.moveTo(o.x-20,o.y-20);
+      ctx.lineTo(o.x+20,o.y-20);
       ctx.stroke();
     }
 
-    if(o.type==="step"){
-      ctx.strokeRect(o.x,o.y,o.w,o.h);
-    }
-
-    if(o.type==="spot"){
-      ctx.fillStyle="rgba(255,220,0,0.35)";
-      ctx.beginPath();
-      ctx.arc(o.x+o.w/2,o.y+o.h/2,o.w/2,0,Math.PI*2);
-      ctx.fill();
-      ctx.strokeStyle="orange";
-      ctx.stroke();
-      ctx.strokeStyle="black";
-    }
-
+    /* 楽器（リンク中は非表示） */
     if(o.type==="instrument"){
-      ctx.strokeRect(o.x,o.y,o.w,o.h);
-      ctx.fillText(o.name,o.x+o.w/2,o.y+25);
+      if(o.linkedChairId) return;
+      ctx.strokeRect(o.x-25,o.y-25,50,50);
+      ctx.fillText(o.name,o.x,o.y+4);
     }
 
-    if(selectedItems.includes(o)){
-      ctx.strokeStyle="blue";
-      ctx.strokeRect(o.x-4,o.y-4,o.w+8,o.h+8);
-      ctx.strokeStyle="black";
-    }
-
-    if(o.resizable){
-      ctx.fillRect(o.x+o.w-8,o.y+o.h-8,8,8);
+    /* スポットライト */
+    if(o.type==="light"){
+      ctx.beginPath();
+      ctx.fillStyle="rgba(255,255,0,0.3)";
+      ctx.arc(o.x,o.y,80,0,Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle="#000";
     }
   });
 
-  if(selectionBox){
-    const b=normalize(selectionBox);
-    ctx.setLineDash([6]);
-    ctx.strokeStyle="blue";
-    ctx.strokeRect(b.x,b.y,b.w,b.h);
-    ctx.setLineDash([]);
-  }
+  if(conductorMode) ctx.restore();
+
+  requestAnimationFrame(draw);
 }
 
 draw();
+
+/* ---------------- 指揮者視点 ---------------- */
+
+function toggleConductor(){
+  conductorMode=!conductorMode;
+}
+
 </script>
 </body>
 </html>
