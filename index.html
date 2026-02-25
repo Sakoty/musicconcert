@@ -2,37 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>吹奏楽 舞台配置エディタ</title>
+<title>舞台配置エディタ</title>
 
 <style>
-body{
-  margin:0;
-  font-family:sans-serif;
-  display:flex;
-  height:100vh;
-}
-
-#palette{
-  width:220px;
-  background:#eee;
-  padding:10px;
-  overflow:auto;
-}
-
-.paletteItem{
-  background:white;
-  border:1px solid #aaa;
-  padding:8px;
-  margin:5px 0;
-  cursor:grab;
-}
-
-canvas{
-  flex:1;
-  background:#f8f8f8;
-  touch-action:none;
-}
-button{margin:4px;}
+body{margin:0;display:flex;height:100vh;font-family:sans-serif;}
+#palette{width:220px;background:#eee;padding:10px;overflow:auto;}
+.paletteItem{background:#fff;border:1px solid #aaa;padding:8px;margin:5px 0;cursor:grab;}
+canvas{flex:1;background:#f8f8f8;touch-action:none;}
 </style>
 </head>
 
@@ -44,248 +20,260 @@ button{margin:4px;}
 <div class="paletteItem" draggable="true" data-type="chair">椅子</div>
 <div class="paletteItem" draggable="true" data-type="stand">譜面台</div>
 <div class="paletteItem" draggable="true" data-type="step">段</div>
-<div class="paletteItem" draggable="true" data-type="light">スポット照明</div>
+<div class="paletteItem" draggable="true" data-type="light">スポットライト</div>
 
 <hr>
 
 <input id="instName" placeholder="楽器名">
 <button onclick="addInstrument()">楽器追加</button>
 
-<hr>
-<button onclick="toggleConductor()">指揮者視点</button>
-
 </div>
 
 <canvas id="canvas"></canvas>
 
 <script>
-
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 
 function resize(){
-  canvas.width=window.innerWidth-220;
-  canvas.height=window.innerHeight;
+ canvas.width=window.innerWidth-220;
+ canvas.height=window.innerHeight;
 }
 resize();
 window.onresize=resize;
 
 let objects=[];
-let selected=[];
-let dragging=null;
-let dragOffsetX=0;
-let dragOffsetY=0;
-let selecting=false;
-let selectStart=null;
-let conductorMode=false;
+let selected=null;
+let dragging=false;
+let resizing=false;
+let offsetX=0,offsetY=0;
+
+/* ---------- 作成 ---------- */
 
 function createObject(type,x,y,name=""){
-  return{
-    id:Date.now()+Math.random(),
-    type,
-    x,y,
-    w:120,
-    h:60,
-    name,
-    linkedChairId:null
-  };
+ return{
+  id:Date.now()+Math.random(),
+  type,x,y,
+  w:140,
+  h:70,
+  radius:80,
+  name,
+  linkedChairId:null
+ };
 }
 
-/* ---------------- パレット ---------------- */
+/* ---------- 楽器追加 ---------- */
+
+function addInstrument(){
+ const name=document.getElementById("instName").value.trim();
+ if(!name)return;
+
+ const div=document.createElement("div");
+ div.className="paletteItem";
+ div.textContent=name;
+ div.draggable=true;
+ div.dataset.type="instrument";
+ div.dataset.name=name;
+
+ div.addEventListener("dragstart",e=>{
+   e.dataTransfer.setData("type","instrument");
+   e.dataTransfer.setData("name",name);
+ });
+
+ document.getElementById("palette").appendChild(div);
+}
+
+/* ---------- DnD ---------- */
 
 document.querySelectorAll(".paletteItem").forEach(el=>{
-  el.addEventListener("dragstart",e=>{
-    e.dataTransfer.setData("type",el.dataset.type);
-  });
+ el.addEventListener("dragstart",e=>{
+   e.dataTransfer.setData("type",el.dataset.type);
+   e.dataTransfer.setData("name",el.dataset.name||"");
+ });
 });
 
 canvas.addEventListener("dragover",e=>e.preventDefault());
 
 canvas.addEventListener("drop",e=>{
-  const type=e.dataTransfer.getData("type");
-  const rect=canvas.getBoundingClientRect();
-  objects.push(createObject(type,
-    e.clientX-rect.left,
-    e.clientY-rect.top
-  ));
+ const rect=canvas.getBoundingClientRect();
+ const type=e.dataTransfer.getData("type");
+ const name=e.dataTransfer.getData("name");
+
+ objects.push(createObject(
+   type,
+   e.clientX-rect.left,
+   e.clientY-rect.top,
+   name
+ ));
 });
 
-/* ---------------- 楽器追加 ---------------- */
-
-function addInstrument(){
-  const name=document.getElementById("instName").value.trim();
-  if(!name)return;
-
-  const div=document.createElement("div");
-  div.className="paletteItem";
-  div.draggable=true;
-  div.textContent=name;
-  div.dataset.type="instrument";
-  div.dataset.name=name;
-
-  div.addEventListener("dragstart",e=>{
-    e.dataTransfer.setData("type","instrument");
-    e.dataTransfer.setData("name",name);
-  });
-
-  document.getElementById("palette").appendChild(div);
-}
-
-/* ---------------- 入力 ---------------- */
+/* ---------- 入力 ---------- */
 
 canvas.onpointerdown=e=>{
-  const rect=canvas.getBoundingClientRect();
-  const x=e.clientX-rect.left;
-  const y=e.clientY-rect.top;
+ const r=canvas.getBoundingClientRect();
+ const x=e.clientX-r.left;
+ const y=e.clientY-r.top;
 
-  dragging=null;
+ selected=null;
 
-  for(let i=objects.length-1;i>=0;i--){
-    const o=objects[i];
-    if(Math.abs(o.x-x)<40 && Math.abs(o.y-y)<40){
-      dragging=o;
-      if(!selected.includes(o)) selected=[o];
-      dragOffsetX=x-o.x;
-      dragOffsetY=y-o.y;
-      return;
-    }
-  }
+ for(let i=objects.length-1;i>=0;i--){
+   const o=objects[i];
 
-  selecting=true;
-  selectStart={x,y};
-  selected=[];
+   // リサイズハンドル
+   if(o.type==="step"){
+     if(Math.abs(x-(o.x+o.w/2))<10 &&
+        Math.abs(y-(o.y+o.h/2))<10){
+        selected=o;
+        resizing=true;
+        return;
+     }
+   }
+
+   if(o.type==="light"){
+     if(Math.hypot(x-o.x,y-o.y)<o.radius+10 &&
+        Math.hypot(x-o.x,y-o.y)>o.radius-10){
+        selected=o;
+        resizing=true;
+        return;
+     }
+   }
+
+   if(Math.abs(o.x-x)<40 && Math.abs(o.y-y)<40){
+     selected=o;
+     dragging=true;
+     offsetX=x-o.x;
+     offsetY=y-o.y;
+     return;
+   }
+ }
 };
 
 canvas.onpointermove=e=>{
-  const rect=canvas.getBoundingClientRect();
-  const x=e.clientX-rect.left;
-  const y=e.clientY-rect.top;
+ if(!selected)return;
 
-  if(dragging){
-    const dx=x-dragging.x-dragOffsetX;
-    const dy=y-dragging.y-dragOffsetY;
+ const r=canvas.getBoundingClientRect();
+ const x=e.clientX-r.left;
+ const y=e.clientY-r.top;
 
-    selected.forEach(o=>{
-      o.x+=dx;
-      o.y+=dy;
-    });
-  }
+ if(dragging){
+   selected.x=x-offsetX;
+   selected.y=y-offsetY;
+ }
+
+ if(resizing){
+   if(selected.type==="step"){
+     selected.w=Math.abs(x-selected.x)*2;
+     selected.h=Math.abs(y-selected.y)*2;
+   }
+   if(selected.type==="light"){
+     selected.radius=Math.hypot(x-selected.x,y-selected.y);
+   }
+ }
 };
 
 canvas.onpointerup=()=>{
-  dragging=null;
-  selecting=false;
+ dragging=false;
+ resizing=false;
 };
 
-/* ダブルクリック削除 */
+/* ---------- ダブルクリック削除 ---------- */
+
 canvas.ondblclick=e=>{
-  const rect=canvas.getBoundingClientRect();
-  const x=e.clientX-rect.left;
-  const y=e.clientY-rect.top;
+ const r=canvas.getBoundingClientRect();
+ const x=e.clientX-r.left;
+ const y=e.clientY-r.top;
 
-  objects=objects.filter(o=>{
-    return !(Math.abs(o.x-x)<40 && Math.abs(o.y-y)<40);
-  });
+ objects=objects.filter(o=>{
+   return !(Math.abs(o.x-x)<40 && Math.abs(o.y-y)<40);
+ });
 };
 
-/* ---------------- 自動リンク ---------------- */
+/* ---------- 自動リンク ---------- */
 
 function autoLink(){
-  const chairs=objects.filter(o=>o.type==="chair");
-  const insts=objects.filter(o=>o.type==="instrument");
+ const chairs=objects.filter(o=>o.type==="chair");
+ const insts=objects.filter(o=>o.type==="instrument");
 
-  insts.forEach(inst=>{
-    inst.linkedChairId=null;
-
-    chairs.forEach(ch=>{
-      const d=Math.hypot(inst.x-ch.x,inst.y-ch.y);
-      if(d<40) inst.linkedChairId=ch.id;
-    });
-  });
+ insts.forEach(inst=>{
+   inst.linkedChairId=null;
+   chairs.forEach(ch=>{
+     if(Math.hypot(inst.x-ch.x,inst.y-ch.y)<40){
+       inst.linkedChairId=ch.id;
+     }
+   });
+ });
 }
 
-/* ---------------- 描画 ---------------- */
+/* ---------- 描画 ---------- */
 
 function draw(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ autoLink();
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  autoLink();
+ ctx.strokeStyle="#000";
+ ctx.fillStyle="#000";
+ ctx.font="12px sans-serif";
+ ctx.textAlign="center";
 
-  if(conductorMode){
-    ctx.save();
-    ctx.translate(canvas.width/2,canvas.height);
-    ctx.scale(1,-1);
-    ctx.translate(-canvas.width/2,-canvas.height);
-  }
+ objects.forEach(o=>{
 
-  ctx.lineWidth=2;
-  ctx.strokeStyle="#000";
-  ctx.fillStyle="#000";
-  ctx.font="12px sans-serif";
-  ctx.textAlign="center";
+   // 段
+   if(o.type==="step"){
+     ctx.strokeRect(o.x-o.w/2,o.y-o.h/2,o.w,o.h);
 
-  objects.forEach(o=>{
+     // ハンドル
+     ctx.fillRect(o.x+o.w/2-5,o.y+o.h/2-5,10,10);
+   }
 
-    /* 段 */
-    if(o.type==="step"){
-      ctx.strokeRect(o.x-o.w/2,o.y-o.h/2,o.w,o.h);
-      ctx.fillText("段",o.x,o.y+4);
-    }
+   // 椅子
+   if(o.type==="chair"){
+     ctx.beginPath();
+     ctx.arc(o.x,o.y,25,0,Math.PI*2);
+     ctx.stroke();
 
-    /* 椅子 */
-    if(o.type==="chair"){
-      ctx.beginPath();
-      ctx.arc(o.x,o.y,25,0,Math.PI*2);
-      ctx.stroke();
+     const inst=objects.find(i=>i.linkedChairId===o.id);
+     if(inst){
+       ctx.fillText(inst.name,o.x,o.y+4);
+     }
+   }
 
-      const inst=objects.find(i=>
-        i.type==="instrument" &&
-        i.linkedChairId===o.id
-      );
-      if(inst){
-        ctx.fillText(inst.name,o.x,o.y+4);
-      }
-    }
+   // 譜面台
+   if(o.type==="stand"){
+     ctx.beginPath();
+     ctx.moveTo(o.x,o.y-20);
+     ctx.lineTo(o.x,o.y+20);
+     ctx.moveTo(o.x-20,o.y-20);
+     ctx.lineTo(o.x+20,o.y-20);
+     ctx.stroke();
+   }
 
-    /* 譜面台 */
-    if(o.type==="stand"){
-      ctx.beginPath();
-      ctx.moveTo(o.x,o.y-20);
-      ctx.lineTo(o.x,o.y+20);
-      ctx.moveTo(o.x-20,o.y-20);
-      ctx.lineTo(o.x+20,o.y-20);
-      ctx.stroke();
-    }
+   // 楽器（リンク中非表示）
+   if(o.type==="instrument"){
+     if(o.linkedChairId)return;
+     ctx.strokeRect(o.x-25,o.y-25,50,50);
+     ctx.fillText(o.name,o.x,o.y+4);
+   }
 
-    /* 楽器（リンク中は非表示） */
-    if(o.type==="instrument"){
-      if(o.linkedChairId) return;
-      ctx.strokeRect(o.x-25,o.y-25,50,50);
-      ctx.fillText(o.name,o.x,o.y+4);
-    }
+   // スポットライト
+   if(o.type==="light"){
+     ctx.beginPath();
+     ctx.fillStyle="rgba(255,255,0,0.3)";
+     ctx.arc(o.x,o.y,o.radius,0,Math.PI*2);
+     ctx.fill();
 
-    /* スポットライト */
-    if(o.type==="light"){
-      ctx.beginPath();
-      ctx.fillStyle="rgba(255,255,0,0.3)";
-      ctx.arc(o.x,o.y,80,0,Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle="#000";
-    }
-  });
+     ctx.strokeStyle="#000";
+     ctx.beginPath();
+     ctx.arc(o.x,o.y,o.radius,0,Math.PI*2);
+     ctx.stroke();
 
-  if(conductorMode) ctx.restore();
+     ctx.fillStyle="#000";
+   }
 
-  requestAnimationFrame(draw);
+ });
+
+ requestAnimationFrame(draw);
 }
-
 draw();
-
-/* ---------------- 指揮者視点 ---------------- */
-
-function toggleConductor(){
-  conductorMode=!conductorMode;
-}
 
 </script>
 </body>
