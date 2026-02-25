@@ -9,9 +9,45 @@ body{margin:0;display:flex;height:100vh;font-family:sans-serif;}
 #palette{width:220px;background:#eee;padding:10px;overflow:auto;}
 .paletteItem{background:#fff;border:1px solid #aaa;padding:8px;margin:5px 0;cursor:grab;}
 canvas{flex:1;background:#f8f8f8;touch-action:none;}
+/* ===== スマホUI ===== */
+#mobileBar{
+ position:fixed;
+ bottom:0;
+ left:0;
+ right:0;
+ height:70px;
+ background:#ffffff;
+ border-top:2px solid #ccc;
+ display:none;
+ justify-content:space-around;
+ align-items:center;
+ z-index:10;
+}
+
+.mobileBtn{
+ font-size:24px;
+ background:#f0f0f0;
+ border-radius:12px;
+ padding:10px 14px;
+}
+
+@media (max-width:800px){
+ #palette{display:none;}
+ #mobileBar{display:flex;}
+ canvas{
+   width:100vw !important;
+   height:calc(100vh - 70px) !important;
+ }
+}
 </style>
 </head>
-
+<div id="mobileBar">
+  <div class="mobileBtn" onclick="setAdd('chair')">🪑</div>
+  <div class="mobileBtn" onclick="setAdd('stand')">🎼</div>
+  <div class="mobileBtn" onclick="setAdd('step')">⬛</div>
+  <div class="mobileBtn" onclick="setAdd('light')">💡</div>
+  <div class="mobileBtn" onclick="addInstrumentMobile()">🎺+</div>
+</div>
 <body>
 
 <div id="palette">
@@ -32,6 +68,10 @@ canvas{flex:1;background:#f8f8f8;touch-action:none;}
 <canvas id="canvas"></canvas>
 
 <script>
+function setAdd(type,name=""){
+ addMode = type;
+ addName = name;
+}
 const isTouchDevice =
   'ontouchstart' in window ||
   navigator.maxTouchPoints > 0;
@@ -39,8 +79,15 @@ const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 
 function resize(){
- canvas.width=window.innerWidth-220;
- canvas.height=window.innerHeight;
+
+ if(window.innerWidth < 800){
+   canvas.width = window.innerWidth;
+   canvas.height = window.innerHeight - 70;
+ }else{
+   canvas.width = window.innerWidth - 220;
+   canvas.height = window.innerHeight;
+ }
+
 }
 resize();
 window.onresize=resize;
@@ -99,6 +146,24 @@ function addInstrument(){
  document.getElementById("palette").appendChild(div);
 }
 
+function addInstrumentMobile(){
+
+ const name = prompt("楽器名を入力");
+ if(!name) return;
+
+ // パレットにも追加（PC互換）
+ const div=document.createElement("div");
+ div.className="paletteItem";
+ div.textContent=name;
+ div.dataset.type="instrument";
+ div.dataset.name=name;
+
+ document.getElementById("palette").appendChild(div);
+
+ // そのまま配置モードへ
+ addMode="instrument";
+ addName=name;
+}
 /* ---------- DnD ---------- */
 
 document.querySelectorAll(".paletteItem").forEach(el=>{
@@ -289,7 +354,7 @@ function draw(){
    // 椅子
    if(o.type==="chair"){
      ctx.beginPath();
-     ctx.arc(o.x,o.y,25,0,Math.PI*2);
+     ctx.arc(o.x,o.y,30,0,Math.PI*2);
      ctx.stroke();
 
      const inst=objects.find(i=>i.linkedChairId===o.id);
@@ -311,7 +376,7 @@ function draw(){
    // 楽器（リンク中非表示）
    if(o.type==="instrument"){
      if(o.linkedChairId)return;
-     ctx.strokeRect(o.x-25,o.y-25,50,50);
+     ctx.strokeRect(o.x-30,o.y-30,60,60);
      ctx.fillText(o.name,o.x,o.y+4);
    }
 
