@@ -75,14 +75,26 @@ function addInstrument(){
  const div=document.createElement("div");
  div.className="paletteItem";
  div.textContent=name;
- div.draggable=true;
  div.dataset.type="instrument";
  div.dataset.name=name;
 
- div.addEventListener("dragstart",e=>{
-   e.dataTransfer.setData("type","instrument");
-   e.dataTransfer.setData("name",name);
- });
+ if(isTouchDevice){
+
+   div.onclick=()=>{
+     addMode="instrument";
+     addName=name;
+     alert("配置したい場所をタップしてください");
+   };
+
+ }else{
+
+   div.draggable=true;
+   div.addEventListener("dragstart",e=>{
+     e.dataTransfer.setData("type","instrument");
+     e.dataTransfer.setData("name",name);
+   });
+
+ }
 
  document.getElementById("palette").appendChild(div);
 }
@@ -129,15 +141,17 @@ canvas.addEventListener("drop",e=>{
 /* ---------- 入力 ---------- */
 
 canvas.onpointerdown=e=>{
- // --- 追加モード配置 ---
-if(addMode){
-  objects.push(createObject(addMode,x,y,addName));
-  addMode=null;
-  return;
-}
+
  const r=canvas.getBoundingClientRect();
  const x=e.clientX-r.left;
  const y=e.clientY-r.top;
+
+ // --- 追加モード配置 ---
+ if(addMode){
+   objects.push(createObject(addMode,x,y,addName));
+   addMode=null;
+   return;
+ }
 
  selected=null;
 
@@ -366,8 +380,7 @@ canvas.addEventListener("pointermove", e=>{
 canvas.addEventListener("touchend",()=>{
   pinchStartDist=null;
 });
-ctx.arc(o.x,o.y,30,0,Math.PI*2);
-ctx.strokeRect(o.x-30,o.y-30,60,60);
+
 let lastTap = 0;
 
 canvas.addEventListener("pointerdown",e=>{
