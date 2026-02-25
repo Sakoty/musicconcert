@@ -17,6 +17,7 @@ body{
   background:#f2f2f2;
   padding:10px;
   border-right:2px solid #ccc;
+  overflow:auto;
 }
 
 .paletteItem{
@@ -45,6 +46,10 @@ canvas{
 <div class="paletteItem" draggable="true" data-type="step">段</div>
 <div class="paletteItem" draggable="true" data-type="spot">スポット照明</div>
 
+<hr>
+<button onclick="addInstrument()">＋楽器を追加</button>
+<div id="instrumentPalette"></div>
+
 </div>
 
 <canvas id="stage"></canvas>
@@ -61,24 +66,52 @@ resize();
 window.onresize=resize;
 
 const items=[];
+const instrumentPalette=[];
 let selectedItems=[];
 
 let dragging=false;
 let resizing=null;
-
-/* 範囲選択 */
 let selecting=false;
 let selectionBox=null;
 
 let startX=0,startY=0;
 
-/* ======================
-   パレットD&D
-====================== */
+/* ========= 楽器追加 ========= */
+
+function addInstrument(){
+  const name=prompt("楽器名を入力");
+  if(!name)return;
+
+  if(!instrumentPalette.includes(name)){
+    instrumentPalette.push(name);
+    refreshInstrumentPalette();
+  }
+}
+
+function refreshInstrumentPalette(){
+  const div=document.getElementById("instrumentPalette");
+  div.innerHTML="";
+
+  instrumentPalette.forEach(name=>{
+    const el=document.createElement("div");
+    el.className="paletteItem";
+    el.textContent=name;
+    el.draggable=true;
+
+    el.addEventListener("dragstart",e=>{
+      e.dataTransfer.setData("instrument",name);
+    });
+
+    div.appendChild(el);
+  });
+}
+
+/* ========= パレットD&D ========= */
 
 document.querySelectorAll(".paletteItem").forEach(el=>{
   el.addEventListener("dragstart",e=>{
-    e.dataTransfer.setData("type",el.dataset.type);
+    if(el.dataset.type)
+      e.dataTransfer.setData("type",el.dataset.type);
   });
 });
 
@@ -87,24 +120,36 @@ canvas.addEventListener("dragover",e=>e.preventDefault());
 canvas.addEventListener("drop",e=>{
   e.preventDefault();
   const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left;
+  const y=e.clientY-rect.top;
 
   const type=e.dataTransfer.getData("type");
+  const inst=e.dataTransfer.getData("instrument");
 
-  items.push({
-    type,
-    x:e.clientX-rect.left,
-    y:e.clientY-rect.top,
-    w:120,
-    h:60,
-    resizable:(type==="step"||type==="spot")
-  });
+  if(type){
+    items.push({
+      type,
+      x,y,
+      w:120,
+      h:60,
+      resizable:(type==="step"||type==="spot")
+    });
+  }
+
+  if(inst){
+    items.push({
+      type:"instrument",
+      name:inst,
+      x,y,
+      w:100,
+      h:40
+    });
+  }
 
   draw();
 });
 
-/* ======================
-   共通座標取得
-====================== */
+/* ========= 座標取得 ========= */
 
 function getPos(e){
   const rect=canvas.getBoundingClientRect();
@@ -120,9 +165,7 @@ function getPos(e){
   };
 }
 
-/* ======================
-   DOWN
-====================== */
+/* ========= DOWN ========= */
 
 function pointerDown(e){
 
@@ -164,9 +207,7 @@ function pointerDown(e){
   draw();
 }
 
-/* ======================
-   MOVE
-====================== */
+/* ========= MOVE ========= */
 
 function pointerMove(e){
 
@@ -201,9 +242,7 @@ function pointerMove(e){
   }
 }
 
-/* ======================
-   UP
-====================== */
+/* ========= UP ========= */
 
 function pointerUp(){
 
@@ -236,9 +275,30 @@ canvas.addEventListener("touchstart",pointerDown);
 canvas.addEventListener("touchmove",pointerMove);
 canvas.addEventListener("touchend",pointerUp);
 
-/* ======================
-   補助
-====================== */
+/* ========= ダブルタップ削除 ========= */
+
+canvas.addEventListener("dblclick",deleteSelected);
+canvas.addEventListener("touchend",handleDoubleTap);
+
+let lastTap=0;
+function handleDoubleTap(e){
+  const now=Date.now();
+  if(now-lastTap<300){
+    deleteSelected();
+  }
+  lastTap=now;
+}
+
+function deleteSelected(){
+  selectedItems.forEach(sel=>{
+    const i=items.indexOf(sel);
+    if(i>-1) items.splice(i,1);
+  });
+  selectedItems=[];
+  draw();
+}
+
+/* ========= 補助 ========= */
 
 function normalize(b){
   return {
@@ -249,9 +309,7 @@ function normalize(b){
   };
 }
 
-/* ======================
-   描画
-====================== */
+/* ========= 描画 ========= */
 
 function draw(){
 
@@ -278,7 +336,6 @@ function draw(){
       ctx.strokeRect(o.x,o.y,o.w,o.h);
     }
 
-    /* ⭐ スポット照明 */
     if(o.type==="spot"){
       ctx.fillStyle="rgba(255,220,0,0.35)";
       ctx.beginPath();
@@ -287,6 +344,11 @@ function draw(){
       ctx.strokeStyle="orange";
       ctx.stroke();
       ctx.strokeStyle="black";
+    }
+
+    if(o.type==="instrument"){
+      ctx.strokeRect(o.x,o.y,o.w,o.h);
+      ctx.fillText(o.name,o.x+o.w/2,o.y+25);
     }
 
     if(selectedItems.includes(o)){
@@ -300,11 +362,10 @@ function draw(){
     }
   });
 
-  /* 範囲選択表示 */
   if(selectionBox){
     const b=normalize(selectionBox);
-    ctx.strokeStyle="rgba(0,120,255,0.8)";
     ctx.setLineDash([6]);
+    ctx.strokeStyle="blue";
     ctx.strokeRect(b.x,b.y,b.w,b.h);
     ctx.setLineDash([]);
   }
