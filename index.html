@@ -34,13 +34,12 @@ canvas{flex:1;background:#f8f8f8;touch-action:none;}
 @media (max-width:800px){
  #palette{display:none;}
  #mobileBar{display:flex;}
- canvas{
-   width:100vw !important;
-   height:calc(100vh - 70px) !important;
- }
 }
 </style>
 </head>
+<body>
+
+<div id="mobileBar">
   <div class="mobileBtn" onclick="setAdd('chair')">🪑</div>
   <div class="mobileBtn" onclick="setAdd('stand')">🎼</div>
   <div class="mobileBtn" onclick="setAdd('step')">⬛</div>
@@ -48,8 +47,6 @@ canvas{flex:1;background:#f8f8f8;touch-action:none;}
   <div class="mobileBtn" onclick="addInstrumentMobile()">🎺+</div>
 </div>
 <body>
-
-<div id="mobileBar">
 
 <div id="palette">
 <h3>パレット</h3>
@@ -170,7 +167,6 @@ function addInstrumentMobile(){
  div.dataset.type="instrument";
  div.dataset.name=name;
 
- // ★スマホ用イベント追加
  div.onclick=()=>{
    addMode="instrument";
    addName=name;
@@ -179,10 +175,6 @@ function addInstrumentMobile(){
  document.getElementById("palette").appendChild(div);
 
  // 即配置モード
- addMode="instrument";
- addName=name;
-}
- // そのまま配置モードへ
  addMode="instrument";
  addName=name;
 }
