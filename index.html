@@ -43,9 +43,7 @@ canvas{
 <div class="paletteItem" draggable="true" data-type="stand">譜面台</div>
 <div class="paletteItem" draggable="true" data-type="step">段</div>
 
-<button onclick="addInstrument()">楽器を追加</button>
-
-<h4>楽器</h4>
+<button onclick="addInstrument()">楽器追加</button>
 <div id="instrumentPalette"></div>
 </div>
 
@@ -67,11 +65,13 @@ const instrumentPalette=[];
 let selectedItems=[];
 
 let dragging=false;
+let resizing=null;
+
 let dragStartX=0;
 let dragStartY=0;
 
 /* =====================
-   パレットD&D生成
+   パレットD&D
 ===================== */
 
 document.querySelectorAll(".paletteItem").forEach(el=>{
@@ -84,14 +84,30 @@ canvas.addEventListener("dragover",e=>e.preventDefault());
 
 canvas.addEventListener("drop",e=>{
   e.preventDefault();
-
   const rect=canvas.getBoundingClientRect();
-  const x=e.clientX-rect.left;
-  const y=e.clientY-rect.top;
 
   const type=e.dataTransfer.getData("type");
+  const name=e.dataTransfer.getData("instrument");
 
-  createItem(type,x,y);
+  if(type){
+    createItem(type,
+      e.clientX-rect.left,
+      e.clientY-rect.top);
+  }
+
+  if(name){
+    items.push({
+      type:"instrument",
+      name,
+      x:e.clientX-rect.left,
+      y:e.clientY-rect.top,
+      w:100,
+      h:40,
+      hidden:false
+    });
+  }
+
+  draw();
 });
 
 /* =====================
@@ -102,12 +118,12 @@ function createItem(type,x,y){
   items.push({
     type,
     x,y,
-    w:100,
-    h:50,
+    w:120,
+    h:60,
     linkedInstrument:null,
-    hidden:false
+    hidden:false,
+    resizable:(type==="step")
   });
-  draw();
 }
 
 function addInstrument(){
@@ -116,11 +132,11 @@ function addInstrument(){
 
   if(!instrumentPalette.includes(name)){
     instrumentPalette.push(name);
-    refreshInstrumentPalette();
+    refreshPalette();
   }
 }
 
-function refreshInstrumentPalette(){
+function refreshPalette(){
   const div=document.getElementById("instrumentPalette");
   div.innerHTML="";
 
@@ -138,26 +154,8 @@ function refreshInstrumentPalette(){
   });
 }
 
-canvas.addEventListener("drop",e=>{
-  const rect=canvas.getBoundingClientRect();
-  const name=e.dataTransfer.getData("instrument");
-
-  if(name){
-    items.push({
-      type:"instrument",
-      name,
-      x:e.clientX-rect.left,
-      y:e.clientY-rect.top,
-      w:100,
-      h:40,
-      hidden:false
-    });
-    draw();
-  }
-});
-
 /* =====================
-   選択＆グループ移動
+   マウス操作
 ===================== */
 
 canvas.addEventListener("mousedown",e=>{
@@ -170,6 +168,17 @@ canvas.addEventListener("mousedown",e=>{
   for(let i=items.length-1;i>=0;i--){
     const o=items[i];
     if(o.hidden) continue;
+
+    /* リサイズ判定 */
+    if(o.resizable){
+      if(mx>o.x+o.w-10 &&
+         mx<o.x+o.w &&
+         my>o.y+o.h-10 &&
+         my<o.y+o.h){
+           resizing=o;
+           return;
+      }
+    }
 
     if(mx>o.x && mx<o.x+o.w &&
        my>o.y && my<o.y+o.h){
@@ -198,12 +207,21 @@ canvas.addEventListener("mousedown",e=>{
   draw();
 });
 
-canvas.addEventListener("mousemove",e=>{
-  if(!dragging) return;
+/* ===== 移動 or サイズ変更 ===== */
 
+canvas.addEventListener("mousemove",e=>{
   const rect=canvas.getBoundingClientRect();
   const mx=e.clientX-rect.left;
   const my=e.clientY-rect.top;
+
+  if(resizing){
+    resizing.w=Math.max(40,mx-resizing.x);
+    resizing.h=Math.max(20,my-resizing.y);
+    draw();
+    return;
+  }
+
+  if(!dragging)return;
 
   const dx=mx-dragStartX;
   const dy=my-dragStartY;
@@ -220,15 +238,38 @@ canvas.addEventListener("mousemove",e=>{
   draw();
 });
 
-canvas.addEventListener("mouseup",()=>dragging=false);
-canvas.addEventListener("mouseleave",()=>dragging=false);
+canvas.addEventListener("mouseup",()=>{
+  dragging=false;
+  resizing=null;
+});
+
+canvas.addEventListener("mouseleave",()=>{
+  dragging=false;
+  resizing=null;
+});
+
+/* =====================
+   ダブルクリック削除
+===================== */
+
+canvas.addEventListener("dblclick",()=>{
+
+  if(selectedItems.length===0) return;
+
+  selectedItems.forEach(sel=>{
+    const index=items.indexOf(sel);
+    if(index>-1) items.splice(index,1);
+  });
+
+  selectedItems=[];
+  draw();
+});
 
 /* =====================
    椅子リンク
 ===================== */
 
 function checkLink(){
-
   const chairs=items.filter(i=>i.type==="chair");
   const instruments=items.filter(i=>i.type==="instrument");
 
@@ -266,7 +307,7 @@ function draw(){
   ctx.textAlign="center";
 
   items.forEach(o=>{
-    if(o.hidden) return;
+    if(o.hidden)return;
 
     if(o.type==="chair"){
       ctx.beginPath();
@@ -288,6 +329,9 @@ function draw(){
     if(o.type==="step"){
       ctx.strokeRect(o.x,o.y,o.w,o.h);
       ctx.fillText("段",o.x+o.w/2,o.y+25);
+
+      /* サイズ変更ハンドル */
+      ctx.fillRect(o.x+o.w-8,o.y+o.h-8,8,8);
     }
 
     if(o.type==="instrument"){
