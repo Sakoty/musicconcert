@@ -156,9 +156,31 @@ canvas.onpointermove=e=>{
  const y=e.clientY-r.top;
 
  if(dragging){
-   selected.x=x-offsetX;
-   selected.y=y-offsetY;
- }
+
+   const newX = x - offsetX;
+   const newY = y - offsetY;
+
+   const dx = newX - selected.x;
+   const dy = newY - selected.y;
+
+   selected.x = newX;
+   selected.y = newY;
+
+   /* ★追加：椅子移動時にリンク楽器も動かす */
+   if(selected.type === "chair"){
+
+     objects.forEach(o=>{
+       if(
+         o.type === "instrument" &&
+         o.linkedChairId === selected.id
+       ){
+         o.x += dx;
+         o.y += dy;
+       }
+     });
+
+   }
+}
 
  if(resizing){
    if(selected.type==="step"){
