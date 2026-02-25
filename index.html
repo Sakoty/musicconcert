@@ -41,7 +41,6 @@ canvas{flex:1;background:#f8f8f8;touch-action:none;}
 }
 </style>
 </head>
-<div id="mobileBar">
   <div class="mobileBtn" onclick="setAdd('chair')">🪑</div>
   <div class="mobileBtn" onclick="setAdd('stand')">🎼</div>
   <div class="mobileBtn" onclick="setAdd('step')">⬛</div>
@@ -49,6 +48,8 @@ canvas{flex:1;background:#f8f8f8;touch-action:none;}
   <div class="mobileBtn" onclick="addInstrumentMobile()">🎺+</div>
 </div>
 <body>
+
+<div id="mobileBar">
 
 <div id="palette">
 <h3>パレット</h3>
@@ -80,14 +81,26 @@ const ctx=canvas.getContext("2d");
 
 function resize(){
 
+ const ratio = window.devicePixelRatio || 1;
+
  if(window.innerWidth < 800){
-   canvas.width = window.innerWidth;
-   canvas.height = window.innerHeight - 70;
+
+   canvas.style.width = "100vw";
+   canvas.style.height = "calc(100vh - 70px)";
+
+   canvas.width = window.innerWidth * ratio;
+   canvas.height = (window.innerHeight - 70) * ratio;
+
  }else{
-   canvas.width = window.innerWidth - 220;
-   canvas.height = window.innerHeight;
+
+   canvas.style.width = "";
+   canvas.style.height = "";
+
+   canvas.width = (window.innerWidth - 220) * ratio;
+   canvas.height = window.innerHeight * ratio;
  }
 
+ ctx.setTransform(ratio,0,0,ratio,0,0);
 }
 resize();
 window.onresize=resize;
@@ -151,15 +164,24 @@ function addInstrumentMobile(){
  const name = prompt("楽器名を入力");
  if(!name) return;
 
- // パレットにも追加（PC互換）
  const div=document.createElement("div");
  div.className="paletteItem";
  div.textContent=name;
  div.dataset.type="instrument";
  div.dataset.name=name;
 
+ // ★スマホ用イベント追加
+ div.onclick=()=>{
+   addMode="instrument";
+   addName=name;
+ };
+
  document.getElementById("palette").appendChild(div);
 
+ // 即配置モード
+ addMode="instrument";
+ addName=name;
+}
  // そのまま配置モードへ
  addMode="instrument";
  addName=name;
